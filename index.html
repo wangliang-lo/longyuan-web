@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>龙渊十狱 第一层垂直切片</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: white;
+	background-color: black;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+#status, #status-splash, #status-progress {
+	position: absolute;
+	left: 0;
+	right: 0;
+}
+
+#status, #status-splash {
+	top: 0;
+	bottom: 0;
+}
+
+#status {
+	background-color: #242424;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	visibility: hidden;
+}
+
+#status-splash {
+	max-height: 100%;
+	max-width: 100%;
+	margin: auto;
+}
+
+#status-splash.show-image--false {
+	display: none;
+}
+
+#status-splash.fullsize--true {
+	height: 100%;
+	width: 100%;
+	object-fit: contain;
+}
+
+#status-splash.use-filter--false {
+	image-rendering: pixelated;
+}
+
+#status-progress, #status-notice {
+	display: none;
+}
+
+#status-progress {
+	bottom: 10%;
+	width: 50%;
+	margin: 0 auto;
+}
+
+#status-notice {
+	background-color: #5b3943;
+	border-radius: 0.5rem;
+	border: 1px solid #9b3943;
+	color: #e0e0e0;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	line-height: 1.3;
+	margin: 0 2rem;
+	overflow: hidden;
+	padding: 1rem;
+	text-align: center;
+	z-index: 1;
+}
+		</style>
+		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
+<link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
+
+	
+		<style>
+#status-progress {
+	height: 14px;
+	width: 72%;
+	bottom: 22%;
+	accent-color: #d8b46a;
+	border: 1px solid #6b5a33;
+	border-radius: 7px;
+	background-color: #1c1c1c;
+}
+
+#dl-text {
+	display: none;
+	position: absolute;
+	bottom: 27%;
+	left: 0;
+	right: 0;
+	text-align: center;
+	color: #f0e6cf;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	font-size: 15px;
+	letter-spacing: 0.04em;
+	text-shadow: 0 1px 3px #000;
+}
+
+#dl-text.show {
+	display: block;
+}
+		</style>
+		</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="index.png" alt="">
+			<progress id="status-progress"></progress>
+			<div id="dl-text"></div>
+			<div id="status-notice"></div>
+		</div>
+
+		
+		<script>
+(function () {
+	var box = null;
+	var lines = [];
+	var frames = 0;
+	var dbg = /[?&]dbg=1/.test(location.search);
+
+	function ensure() {
+		if (box != null && box.parentNode != null) return box;
+		box = document.createElement("div");
+		box.id = "gd-diag";
+		box.setAttribute("style", "position:fixed;left:8px;bottom:8px;z-index:2147483647;"
+			+ "max-width:78vw;padding:7px 10px;border-radius:7px;background:#000;color:#ffd35c;"
+			+ "border:1px solid #6b5a33;font:12px/1.5 Consolas,'Noto Sans',monospace;"
+			+ "white-space:pre-wrap;pointer-events:none;");
+		document.body.appendChild(box);
+		return box;
+	}
+	function show(text) {
+		var el = ensure();
+		el.textContent = text;
+		el.style.display = "block";
+	}
+	// 追加式：连续重复的同一句不重复占行（角标只有 7 行，重复会把关键行挤掉）。
+	window.__gdDiag = function (tag) {
+		var s = String(tag);
+		if (lines.length > 0 && lines[lines.length - 1] === s) return;
+		lines.push(s);
+		if (lines.length > 7) lines.shift();
+		if (dbg) show(lines.join("\n") + "\n主循环帧数：" + frames);
+	};
+	// 定点式（2026-11-20）：同一个 key 只占一行、原地替换。
+	// 给「每秒都在变的读数」用（横屏判据、下载进度），这样它们不会把事件行冲掉。
+	var slots = {};
+	window.__gdDiagSet = function (key, text) {
+		var k = "[" + key + "] ";
+		slots[key] = k + String(text);
+		lines = lines.filter(function (l) { return l.indexOf(k) !== 0; });
+		lines.push(slots[key]);
+		if (lines.length > 7) lines.shift();
+		if (dbg) show(lines.join("\n") + "\n主循环帧数：" + frames);
+	};
+	// 主循环有没有在跑：rAF 每帧计数，只统计引擎自己注册的回调。
+	(function tick() {
+		requestAnimationFrame(function () { frames += 1; tick(); });
+	})();
+	window.addEventListener("error", function (e) {
+		show("页面出错，把这行发给队友\n"
+			+ String(e && e.message ? e.message : e.type).slice(0, 200)
+			+ "\n" + String(e && e.filename ? e.filename : "").slice(0, 70));
+	}, true);
+	window.addEventListener("unhandledrejection", function (e) {
+		var r = e == null ? null : e.reason;
+		show("异步失败，把这行发给队友\n"
+			+ String(r && r.message ? r.message : r).slice(0, 260));
+	});
+	// WebGL 起不来是"黑屏且没有任何提示"的典型原因，这里当场写出来。
+	var origGet = HTMLCanvasElement.prototype.getContext;
+	HTMLCanvasElement.prototype.getContext = function (type) {
+		var ctx = origGet.apply(this, arguments);
+		if (ctx == null) window.__gdDiag("getContext 返回空：" + type);
+		return ctx;
+	};
+	window.__gdDiag("诊断角标已就绪" + (dbg ? "" : "（加 ?dbg=1 看阶段）"));
+})();
+		</script>
+
+		<script>
+(function () {
+	var PACKED = "index.wasmz";
+	var CHUNK = 1024 * 1024;
+	// 分段下载的并发路数（2026-11-20）：弱网下串行等 RTT 太久，多路能把等待叠起来。
+	// 默认 3；URL 上加 ?par=N 可现场改（1~8），用来分辨"单连接被限速"还是"总带宽就这么多"。
+	var parArg = /[?&]par=(d+)/.exec(location.search);
+	var PARALLEL = parArg ? Math.min(8, Math.max(1, parseInt(parArg[1], 10))) : 3;
+	var RETRY = 6;
+	var CACHE = "longyuan-resume-v1";
+	var native = window.fetch.bind(window);
+	if (window.__gdDiag) window.__gdDiag("加载器已挂（PARALLEL=" + PARALLEL + "）");
+	var disabled = /[?&]noresume=1/.test(location.search);
+
+	// 条子只有一个持有者，刻度只用真信号：0~98 = 下载（shim 自己数的字节），98 = 下载完，
+	// 99 = 引擎把字节全抽走（onProgress current>=total），100 = startGame() 的 promise 落地。
+	// 没有信号的中间态一律冻结不爬 —— 装载期间条子就停在 98，误读靠文案解决（监督裁定）。
+	var got = {}, want = {}, hi = 0, note = "", dlDone = 0, drain = 0, drainMax = 0, clock = 0, cached = 0, ready = 0;
+	// 下载计时：第一个字节到手开始算，用来显示速度/已用秒/预计剩余。
+	var dlStart = 0;
+	var bar = document.getElementById("status-progress"), el = document.getElementById("dl-text");
+	function sum(t) { var s = 0; for (var k in t) s += t[k]; return s; }
+	function mb(n) { return (n / 1048576).toFixed(1); }
+	function paint() {
+		var g = sum(got), w = sum(want), done = w > 0 && g >= w, handed = drainMax > 0 && drain >= drainMax;
+		if (done && dlDone == 0) dlDone = Date.now();
+		var p = ready ? 100 : (handed ? 99 : (done ? 98 : Math.max(hi, w > 0 ? Math.round(98 * g / w) : 0)));
+		hi = p;
+		var secs = dlDone > 0 ? Math.floor((Date.now() - dlDone) / 1000) : 0;
+		var text;
+		if (ready) text = "引擎已启动，正在进画面 · 装载等了 " + secs + " 秒";
+		else if (done) text = "已下载 100% · " + (handed ? "字节已交完，正在实例化" : "正在解压/实例化")
+			+ "（还没进游戏）· 已等 " + secs + " 秒"
+			+ (drainMax > 0 && !handed ? " · 引擎已取 " + mb(drain) + "/" + mb(drainMax) + " MB" : "");
+		else if (w > 0) {
+			if (dlStart == 0 && g > 0) dlStart = Date.now();
+			var used = dlStart > 0 ? (Date.now() - dlStart) / 1000 : 0;
+			var speed = used > 0.5 ? g / 1048576 / used : 0;
+			var left = speed > 0.01 ? Math.ceil((w - g) / 1048576 / speed) : -1;
+			text = "下载 " + mb(g) + "/" + mb(w) + " MB " + p + "%"
+				+ (speed > 0 ? " · " + speed.toFixed(2) + " MB/s" : "")
+				+ (used > 1 ? " · 已用 " + Math.floor(used) + " 秒" : "")
+				+ (left >= 0 ? " · 预计还剩 " + left + " 秒" : "")
+				+ (note ? " · " + note : "");
+		} else text = "准备下载" + (note ? " · " + note : "");
+		if (bar != null) {
+			bar.max = 100;
+			bar.value = p;
+		}
+		if (el != null) {
+			el.textContent = text;
+			el.classList.add("show");
+		}
+		// 加载屏启动成功后会被整块删掉，同一句话再抄一份给常驻角标。
+		// 走定点行：每秒刷新只替换这一行，不把别的事件挤出去。
+		if (typeof window.__gdDiagSet === "function") window.__gdDiagSet("下载", text);
+		else if (typeof window.__gdDiag === "function") window.__gdDiag(text);
+		// 装载半段引擎不再回调，秒数自己走；__dlLoaded 或元素被删都会停掉它。
+		if ((done || (w > 0 && g > 0)) && clock == 0 && bar != null) {
+			clock = setInterval(function () {
+				if (!bar.isConnected || ready) {
+					clearInterval(clock);
+					clock = 0;
+					return;
+				}
+				paint();
+			}, 1000);
+		}
+	}
+	function say(text) { note = text; paint(); }
+
+	// 引擎 onProgress：只把「引擎已取字节」写进文案，不再驱动条子（那半段不许假装）。
+	window.__dlProgress = function (loaded, total) {
+		if (total > 0) drainMax = Math.max(drainMax, total);
+		if (loaded > 0) drain = Math.max(drain, loaded);
+		if (dlDone > 0) paint();
+	};
+
+	// 装载结束的真信号：startGame() 那条 promise 只在引擎真跑起来时 resolve，
+	// 注入点就在它的 then 里。计时器靠它当场停，条子靠它补满。
+	window.__dlLoaded = function () {
+		ready = 1;
+		if (clock != 0) {
+			clearInterval(clock);
+			clock = 0;
+		}
+		paint();
+	};
+
+	function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+	// Cache Storage 只在安全上下文里有；局域网明文访问时可能没有，那就只在本页内重试。
+	function openCache() {
+		if (typeof caches === "undefined") return Promise.resolve(null);
+		return caches.open(CACHE).catch(function () { return null; });
+	}
+
+	function headInfo(url) {
+		if (window.__gdDiag) window.__gdDiag("探测 " + url.slice(-24));
+		return native(url, { headers: { Range: "bytes=0-0" } }).then(function (res) {
+			if (res.status === 206) {
+				var m = /bytes\s+\d+-\d+\/(\d+)/i.exec(res.headers.get("Content-Range") || "");
+				var sz = m ? Number(m[1]) : 0;
+				if (window.__gdDiag) window.__gdDiag("探测成功 206 大小 " + sz + " B");
+				return { ranged: true, size: sz, etag: res.headers.get("ETag") || "" };
+			}
+			if (window.__gdDiag) window.__gdDiag("探测非 206（状态 " + res.status + "）→ 整包回退");
+			return res.arrayBuffer().then(function (buf) {
+				return { ranged: false, size: buf.byteLength, body: buf };
+			});
+		});
+	}
+
+	function fetchRange(url, start, len) {
+		return native(url, { headers: { Range: "bytes=" + start + "-" + (start + len - 1) } }).then(function (res) {
+			if (res.status !== 206) throw new Error("分段被拒（状态 " + res.status + "）");
+			return res.arrayBuffer().then(function (buf) {
+				if (buf.byteLength !== len) throw new Error("分段长度不符 " + buf.byteLength + "!=" + len);
+				return buf;
+			});
+		});
+	}
+
+	// 段号编进查询串当缓存键：ETag 变了键就变，所以重导出不会命中旧段。
+	// 缓存键是绝对 URL（https://host:8443/index.pck?seg=3&v=<etag>），而传进来的 url 是相对串。
+	// 旧写法拿 req.url.indexOf(url) 跟 0 比，用相对串去比绝对键，位置永远不是 0，清理一次都没命中过——
+	// 实拍量到 Cache Storage 里 30 段 / 28.8 MB、两个 ETag 世代并存，手机存储只涨不降。
+	// 现在按 pathname 归组：同一个文件的段才归它管，v 不等于当前世代的才是残段。
+	// XWEB 里碰到解不动的 URL 一律跳过，不能让它抛出去把下载带停。
+	function isStaleChunk(reqUrl, baseUrl, etag) {
+		var a, b;
+		try {
+			a = new URL(reqUrl, location.href);
+			b = new URL(baseUrl, location.href);
+		} catch (e) {
+			return false;
+		}
+		if (a.pathname !== b.pathname) return false;
+		return a.searchParams.get("v") !== etag;
+	}
+
+	function chunkKey(url, etag, index) {
+		var sep = url.indexOf("?") < 0 ? "?" : "&";
+		return url + sep + "seg=" + index + "&v=" + encodeURIComponent(etag);
+	}
+
+	function getChunk(cache, url, etag, index, start, len, label) {
+		var key = chunkKey(url, etag, index);
+		var hit = cache ? cache.match(key) : Promise.resolve(undefined);
+		return hit.then(function (found) {
+			// 秒回的字节也要进账，不然第二次打开条子会一声不响跳过去。
+			if (found) return found.arrayBuffer().then(function (buf) { cached += buf.byteLength; return buf; });
+			var attempt = 0;
+			function again() {
+				attempt += 1;
+				return fetchRange(url, start, len).catch(function () {
+					if (attempt >= RETRY) throw new Error(label + " 第 " + (index + 1) + " 段连续 " + RETRY + " 次失败");
+					say(label + " 第 " + (index + 1) + " 段断了，第 " + attempt + " 次重连…");
+					return sleep(400 * attempt).then(again);
+				});
+			}
+			return again().then(function (buf) {
+				if (cache) cache.put(key, new Response(buf)).catch(function () {});
+				return buf;
+			});
+		});
+	}
+
+	function resumable(url, label) {
+		// 排障开关也不能让条子瞎掉：整包回来要把这一份记满。
+		if (disabled) {
+			return native(url).then(function (r) {
+				return r.arrayBuffer().then(function (buf) {
+					want[label] = buf.byteLength;
+					got[label] = buf.byteLength;
+					say(label + " 不分段整包已收");
+					// 必须交 Blob：调用方要 blob.slice(0,2).arrayBuffer()，交 ArrayBuffer 时引擎重下三遍 wasm 也起不来。
+					return new Blob([buf]);
+				});
+			});
+		}
+		return headInfo(url).then(function (info) {
+			if (!info.ranged) {
+				// 整包回退也要进账：漏掉它条子永远停在另一份那半边。
+				want[label] = info.size;
+				got[label] = info.size;
+				say(label + " 服务器不支持分段，整包已收");
+				return new Blob([info.body]);
+			}
+			var total = info.size;
+			if (!(total > 0)) throw new Error("拿不到 " + label + " 的文件大小");
+			var count = Math.ceil(total / CHUNK);
+			var parts = [];
+			var done = 0;
+			var cacheP = openCache();
+			// want 先挂、got 从 0 挂：反了会把还没下的文件算成下完。
+			want[label] = total;
+			got[label] = 0;
+			say(label + " 共 " + count + " 段");
+			// 2026-11-20（用户点头"可以可以"）：串行 → 3 路并发。
+			// 弱网下串行的瓶颈是每段都要等一个 RTT 回来才发下一段；3 路并行把这段等待叠起来。
+			// parts 按段号落位，拼包顺序不变；进度语义仍是"已完成字节"。
+			var next = 0;
+			function worker() {
+				var i = next;
+				next += 1;
+				if (i >= count) return Promise.resolve();
+				var start = i * CHUNK;
+				var len = Math.min(CHUNK, total - start);
+				return cacheP.then(function (cache) {
+					return getChunk(cache, url, info.etag, i, start, len, label);
+				}).then(function (buf) {
+					parts[i] = buf;
+					// 赋值不是累加：引擎 loadFetch 会 retry，同一文件重来不能记两遍。
+					done += buf.byteLength;
+					got[label] = done;
+					say(label + " 第 " + (i + 1) + "/" + count + " 段" + (cached > 0 ? " · 含秒回 " + mb(cached) + " MB" : ""));
+					return worker();
+				});
+			}
+			function step(_i) {
+				var lanes = [];
+				for (var w = 0; w < PARALLEL; w += 1) lanes.push(worker());
+				return Promise.all(lanes);
+			}
+			// 顺手把上一个导出的残段删掉，不然手机存储会越攒越多。
+			return step(0).then(function () {
+				return cacheP.then(function (cache) {
+					if (!cache) return;
+					return cache.keys().then(function (keys) {
+						return Promise.all(keys.map(function (req) {
+							if (isStaleChunk(req.url, url, info.etag)) {
+								return cache.delete(req);
+							}
+							return Promise.resolve();
+						}));
+					});
+				}).catch(function () {});
+			}).then(function () { return new Blob(parts); });
+		}).catch(function (e) {
+			if (window.__gdDiag) window.__gdDiag("下载失败：" + String(e && e.message ? e.message : e).slice(0, 120));
+			throw e;
+		});
+	}
+
+	window.fetch = function (input, init) {
+		var url = typeof input === "string" ? input : (input && input.url) || "";
+		if (window.__gdDiag && /index.(wasm|pck)/.test(url)) window.__gdDiag("接管请求 " + url.slice(-40));
+		if (/index\.wasm(\?|#|$)/.test(url)) {
+			// 引擎 wasm 不发原文，发的是 gzip 后的 index.wasmz；下完再流式还原，
+			// 让 WebAssembly.instantiateStreaming 继续拿到 application/wasm。
+			if (typeof DecompressionStream !== "function") {
+				return Promise.reject(new Error("此浏览器不支持 gzip 流式解压，请用 Chrome/Edge 80+ 或 Safari 16.4+ 打开。"));
+			}
+			return resumable(PACKED, "引擎").then(function (blob) {
+				return blob.slice(0, 2).arrayBuffer().then(function (two) {
+					var head = new Uint8Array(two);
+					// 中间层有没有再套一层传输压缩都不用管：只看头两字节是不是 gzip 魔数。
+					var isGzip = head[0] === 0x1f && head[1] === 0x8b;
+					var body = blob.stream();
+					if (isGzip) body = body.pipeThrough(new DecompressionStream("gzip"));
+					return new Response(body, { status: 200, headers: { "Content-Type": "application/wasm" } });
+				});
+			});
+		}
+		if (/index\.pck(\?|#|$)/.test(url)) {
+			return resumable(url, "资源").then(function (blob) {
+				return new Response(blob, { status: 200, headers: { "Content-Type": "application/octet-stream" } });
+			});
+		}
+		return native(input, init);
+	};
+})();
+		</script>
+
+		<script>
+(function () {
+	const canvas = document.getElementById("canvas");
+	if (canvas == null) return;
+	const status = document.getElementById("status");
+	const forced = /[?&]rot=1/.test(location.search);
+	const off = /[?&]rot=0/.test(location.search);
+	const quiet = !/[?&]diag=1/.test(location.search);  // 2026-11-20：默认安静，要看诊断加 ?diag=1
+	let css = false;
+	let why = "init";
+	window.__gdCssLandscape = function () { return css; };
+
+	// 三条互相独立的通路，任一为竖即转；返回值同时就是读数里的"本次判据来源"。
+	function portraitHits() {
+		const hit = [];
+		try { if (window.matchMedia && matchMedia("(orientation: portrait)").matches) hit.push("matchMedia"); } catch (e) {}
+		if (window.innerHeight > window.innerWidth) hit.push("innerH>innerW");
+		try { if (/portrait/.test((screen.orientation && screen.orientation.type) || "")) hit.push("orientation.type"); } catch (e) {}
+		return hit;
+	}
+	function land() { return { w: window.innerHeight, h: window.innerWidth }; }
+	function applyCss() {
+		const L = land(), k = Math.min(window.devicePixelRatio || 1, 2);
+		for (const el of [canvas, status]) {
+			if (el == null) continue;
+			el.style.position = "fixed";
+			el.style.left = "0px";
+			el.style.top = "0px";
+			el.style.margin = "0px";
+			el.style.width = L.w + "px";
+			el.style.height = L.h + "px";
+			el.style.transformOrigin = "0 0";
+			el.style.transform = "translate(" + window.innerWidth + "px, 0px) rotate(90deg)";
+		}
+		// canvasResizePolicy=0 时引擎按 canvas 现有尺寸采纳，所以后备缓冲也得我们自己设。
+		canvas.width = Math.round(L.w * k);
+		canvas.height = Math.round(L.h * k);
+	}
+	function clearCss() {
+		for (const el of [canvas, status]) {
+			if (el == null) continue;
+			el.style.position = ""; el.style.left = ""; el.style.top = ""; el.style.margin = "";
+			el.style.width = ""; el.style.height = ""; el.style.transform = ""; el.style.transformOrigin = "";
+		}
+	}
+	// ④ 转成功的几何签名。getBoundingClientRect 拿的是变换后的屏幕框，offsetWidth/Height 是变换前的布局盒。
+	function rotated() {
+		const r = canvas.getBoundingClientRect();
+		return canvas.offsetWidth > canvas.offsetHeight && r.height > r.width && r.width > 0;
+	}
+	// ③ 读数另开一个角标，不蹭 #gd-diag：那个盒子下载期被进度写、错误期被异常写，只在 ?dbg=1 才显示，
+	// 恰恰会在"要看它的那一刻"被别的话盖掉（#147 那次两条路抢同一个元素就是这么踩的）。
+	function box(id, style) {
+		const have = document.getElementById(id);
+		if (have != null) return have;
+		const el = document.createElement("div");
+		el.id = id;
+		el.setAttribute("style", style);
+		document.body.appendChild(el);
+		return el;
+	}
+	function report() {
+		const fsEl = document.fullscreenElement || null;
+		const line = "视口 " + window.innerWidth + "x" + window.innerHeight
+			+ (css ? " · CSS横屏" : " · 原生横屏")
+			+ " · 判据 " + why
+			+ " · 全屏 " + (fsEl == null ? "无" : (fsEl === canvas ? "canvas(坏)" : "文档根"));
+		if (!quiet) box("gd-or", "position:fixed;left:8px;top:8px;z-index:2147483646;padding:4px 8px;"
+			+ "border-radius:6px;background:#000c;color:#ffd35c;font:11px/1.4 Consolas,'Noto Sans',monospace;"
+			+ "pointer-events:none;").textContent = line;
+		// 定点行：横屏判据每秒都会变，追加式会把角标刷满（手机上实测一屏全是这行）。
+		if (typeof window.__gdDiagSet === "function") window.__gdDiagSet("横屏", line);
+		else if (typeof window.__gdDiag === "function") window.__gdDiag(line);
+		const stuck = !off && (forced || portraitHits().length > 0) && !rotated();
+		const mk = box("gd-mask", "position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483645;"
+			+ "align-items:center;justify-content:center;flex-direction:column;background:#0b0b0ee6;"
+			+ "color:#f0e6cf;font:16px/1.7 'Noto Sans',sans-serif;text-align:center;padding:24px;"
+			+ "pointer-events:none;");
+		mk.style.display = stuck ? "flex" : "none";
+		// 文案只在真要盖的时候写一次：每次 report 都重设 textContent 等于每帧碰 DOM。
+		if (stuck && mk.firstChild == null) mk.textContent = "请横屏握持";
+	}
+
+	// 竖屏就转、横屏就还给引擎，两边都问同一条共识，不猜浏览器能力。
+	function sync() {
+		const hit = portraitHits();
+		css = !off && (forced || hit.length > 0);
+		why = off ? "rot=0 关闭" : (forced ? "rot=1 强制" : (hit.length ? hit.join("+") : "三信号皆横"));
+		if (css) applyCss(); else clearCss();
+		// 刚写完样式量不到变换后的框（要等一帧布局），所以同步报一次 + 下一帧再报一次。
+		report();
+		requestAnimationFrame(report);
+	}
+
+	// rotate(90deg) 下视口 (vx,vy) 对应画布 (b*W, (1-a)*H)，而引擎算的是 (a*W, b*H)。
+	function remap(clientX, clientY) {
+		const r = canvas.getBoundingClientRect();
+		const a = (clientX - r.left) / r.width, b = (clientY - r.top) / r.height;
+		return [r.left + b * r.width, r.top + (1 - a) * r.height];
+	}
+	function patch(t) {
+		if (t == null || typeof t.clientX !== "number") return;
+		let p;
+		try { p = remap(t.clientX, t.clientY); } catch (e) { return; }
+		try {
+			Object.defineProperty(t, "clientX", { value: p[0], configurable: true });
+			Object.defineProperty(t, "clientY", { value: p[1], configurable: true });
+			Object.defineProperty(t, "pageX", { value: p[0] + window.scrollX, configurable: true });
+			Object.defineProperty(t, "pageY", { value: p[1] + window.scrollY, configurable: true });
+		} catch (e) {}
+	}
+	function onEvent(evt) {
+		if (!css) return;
+		// 只改写 changedTouches：index.js 里 touch_cb 只读它，指针/鼠标走事件对象本身。
+		// touches/targetTouches 里同一根手指是另一份 Touch 快照，多改一遍等于把同一个点旋转两次。
+		const list = evt.changedTouches;
+		if (list) for (let i = 0; i < list.length; i++) patch(list[i]);
+		else patch(evt);
+	}
+	for (const type of ["touchstart", "touchmove", "touchend", "touchcancel", "pointerdown", "pointermove",
+		"pointerup", "pointercancel", "mousedown", "mousemove", "mouseup", "click", "wheel"]) {
+		window.addEventListener(type, onEvent, true);
+	}
+	// 四个都会改几何：转屏、改窗口、软键盘/地址栏动 visual viewport、进出全屏（① 换了全屏对象后最后一条必挂）。
+	window.addEventListener("orientationchange", sync);
+	window.addEventListener("resize", sync);
+	if (window.visualViewport) window.visualViewport.addEventListener("resize", sync);
+	document.addEventListener("fullscreenchange", sync);
+	sync();
+
+	// CSS 横屏已经在跑了，这里再试一次"真横屏"：转成功就自动交还给引擎（sync 会撤掉 CSS），
+	// 失败也不影响任何事 —— 不再靠 lock 的返回值判断成败，那正是老写法在微信里失效的原因。
+	const once = function () {
+		window.removeEventListener("touchend", once, true);
+		if (!css) return;
+		// ① 全屏的是文档根，不是 canvas。
+		const target = document.documentElement || document.body;
+		try { const pr = target.requestFullscreen && target.requestFullscreen(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+		try { const lk = screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape"); if (lk && lk.catch) lk.catch(function () {}); } catch (e) {}
+	};
+	window.addEventListener("touchend", once, true);
+	// ④ 遮罩不能只挂在事件上：内联样式被抢走这件事本身不发事件（fullscreenchange 到了才同步一次
+	// 会漏掉晚一帧的样式接管，也漏掉软键盘那种不改几何却改可见区的情形）。
+	// 只重跑 report，不重跑 sync —— applyCss 会写 canvas.width/height，按秒刷它等于和引擎抢后备缓冲。
+	setInterval(report, 800);
+})();
+		</script>
+		<script src="index.js"></script>
+		<script>
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":(window.__gdCssLandscape&&window.__gdCssLandscape()?0:2),"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":2103008,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_THREADS_ENABLED = false;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const statusProgress = document.getElementById('status-progress');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			statusOverlay.remove();
+			initializing = false;
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
+		statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('An unknown error occurred.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				window.__dlProgress(current, total);
+			},
+		}).then(() => {
+			setStatusMode('hidden');window.__dlLoaded&&window.__dlLoaded();
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>
+
