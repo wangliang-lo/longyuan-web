@@ -244,7 +244,7 @@ body {
 	// 占位符的**字面形状**被 main 段 replace + 断言钉着，别手改成别的写法 ——
 	// 哪天占位符对不上，出包会当场红，而不是安静地退回固定 URL 又变成"假刷新"。
 	var PACKED = "index.wasmz?h=33d94f97";
-	var PACK = "index.pck?h=9194f627";
+	var PACK = "index.pck?h=db522baa";
 	var CHUNK = 1024 * 1024;
 	// 分段下载的并发路数（2026-11-20）：弱网下串行等 RTT 太久，多路能把等待叠起来。
 	// 默认 3；URL 上加 ?par=N 可现场改（1~8），用来分辨"单连接被限速"还是"总带宽就这么多"。
@@ -685,7 +685,7 @@ body {
 		</script>
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":(window.__gdCssLandscape&&window.__gdCssLandscape()?0:2),"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":2234272,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":(window.__gdCssLandscape&&window.__gdCssLandscape()?0:2),"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":2234432,"index.wasm":43699190},"focusCanvas":true,"gdextensionLibs":[]};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
