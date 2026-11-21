@@ -600,6 +600,23 @@ body {
 		mk.style.display = stuck ? "flex" : "none";
 		// 文案只在真要盖的时候写一次：每次 report 都重设 textContent 等于每帧碰 DOM。
 		if (stuck && mk.firstChild == null) mk.textContent = "请横屏握持";
+		// 2026-11-21 用户实拍：竖屏握持时画面被 CSS 转 90°，看着像"歪了"。这里补一句明确提示，
+		// 5 秒后淡出、不拦输入（pointer-events:none），转成横屏后自然消失。
+		const rh = box("gd-rotate-hint", "position:fixed;left:50%;top:12%;transform:translateX(-50%);"
+			+ "z-index:2147483644;padding:10px 16px;border-radius:10px;background:#000c;"
+			+ "color:#ffe7a8;font:15px/1.5 'Noto Sans',sans-serif;text-align:center;"
+			+ "pointer-events:none;transition:opacity .6s;");
+		if (css && window.innerHeight > window.innerWidth) {
+			if (rh.firstChild == null) rh.textContent = "请把手机横过来 ⟳";
+			if (rh.style.opacity === "" || rh.style.opacity === "1") {
+				rh.style.opacity = "1";
+				if (!rh.__t0) rh.__t0 = Date.now();
+				if (Date.now() - rh.__t0 > 5000) rh.style.opacity = "0";
+			}
+		} else {
+			rh.style.opacity = "0";
+			rh.__t0 = 0;
+		}
 	}
 
 	// 竖屏就转、横屏就还给引擎，两边都问同一条共识，不猜浏览器能力。
