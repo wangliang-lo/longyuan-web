@@ -164,10 +164,34 @@ body {
 		document.body.appendChild(box);
 		return box;
 	}
-	function show(text) {
+	var hideTimer = 0;
+	var sticky = false;
+	// 2026-11-21 用户实拍：这块黑面板会盖住下半屏。dbg 模式下启动完成后自动收起，
+	// 只在真错误时（sticky）常驻；左上角留一颗「i」随时可以再打开。
+	function show(text, keep) {
 		var el = ensure();
 		el.textContent = text;
 		el.style.display = "block";
+		if (keep) { sticky = true; if (hideTimer) { clearTimeout(hideTimer); hideTimer = 0; } return; }
+		if (!dbg) return;
+		sticky = false;
+		if (hideTimer) clearTimeout(hideTimer);
+		hideTimer = setTimeout(function () { if (el.parentNode) el.style.display = "none"; }, 6000);
+	}
+	function badge() {
+		var b = document.createElement("div");
+		b.id = "gd-diag-badge";
+		b.textContent = "i";
+		b.setAttribute("style", "position:fixed;left:6px;top:6px;z-index:2147483647;width:22px;height:22px;"
+			+ "border-radius:11px;background:rgba(0,0,0,.55);color:#ffd35c;border:1px solid #6b5a33;"
+			+ "font:13px/20px Consolas,monospace;text-align:center;opacity:.55;");
+		b.addEventListener("click", function () {
+			var el = ensure();
+			el.style.display = el.style.display === "none" ? "block" : "none";
+			el.textContent = lines.join("\n") + "\n主循环帧数：" + frames;
+			if (el.style.display === "block") { if (hideTimer) clearTimeout(hideTimer); hideTimer = setTimeout(function () { if (el.parentNode) el.style.display = "none"; }, 6000); }
+		});
+		document.body.appendChild(b);
 	}
 	// 追加式：连续重复的同一句不重复占行（角标只有 7 行，重复会把关键行挤掉）。
 	window.__gdDiag = function (tag) {
@@ -200,7 +224,7 @@ body {
 	window.addEventListener("unhandledrejection", function (e) {
 		var r = e == null ? null : e.reason;
 		show("异步失败，把这行发给队友\n"
-			+ String(r && r.message ? r.message : r).slice(0, 260));
+			+ String(r && r.message ? r.message : r).slice(0, 260), true);
 	});
 	// WebGL 起不来是"黑屏且没有任何提示"的典型原因，这里当场写出来。
 	var origGet = HTMLCanvasElement.prototype.getContext;
@@ -209,6 +233,7 @@ body {
 		if (ctx == null) window.__gdDiag("getContext 返回空：" + type);
 		return ctx;
 	};
+	if (dbg) badge();
 	window.__gdDiag("诊断角标已就绪" + (dbg ? "" : "（加 ?dbg=1 看阶段）"));
 })();
 		</script>
